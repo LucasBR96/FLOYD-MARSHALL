@@ -1,80 +1,97 @@
 import numpy
 import sys
+from itertools import product, permutations
 
-def update_cost( M , k ):
+def get_k_costs( V , E ):
     
-    result = []
-    n = len( M ) # square matrix
-
-    for i in range( n ):
-        seq = []
-        for j in range( n ):
-
-            m1 = M[ i ][ j ]
-            m2 = M[ i ][ k ] + M[ k ][ j ]
-            
-            m = m1 if m1 < m2 else m2
-            seq.append( m )
-
-        result.append( seq )
-    return result
-
-def init_matrix( V , E ):
-    
-    idx = list( v )
-    n = len( idx )
-    M = [ ]
-
-    for i in range( n ):
-        u = idx[ i ]
-        seq = []
-        for j in range( n ):
-            v = idx[ j ]
-            tup = ( u , v )
-            M[ i ][ j ] = E.get( tup , sys.maxsize )
-    return M , idx
-
-def fw_min_paths( V , E ):
-    
-    M , idx = init_matrix( V , E )
+    idx = list( V )
     n = len( V )
+    M = numpy.ones( ( n + 1 , n , n ) )
 
-    P = [ get_subpaths( M ) ]
+    seq = product( range( n ) , repeat = 2 )
+    for i , j in seq:
+        tup = ( idx[ i ] , idx[ j ] )
+        M[ 0 , i , j ] = E.get( tup , sys.maxsize )
 
-
-def fw_min_costs( V , E ):
-
-    M , idx = init_matrix( V , E )
-    n = len( V )
     for k in range( n ):
-        M = update_cost( M , k )
-    
-    Min_val = dict()
-    for i in range( n ):
-        u = idx[ i ]
-        for j in range( n ):
-            v = idx[ j ]
-            
-            tup = ( u , v )
-            Min_val[ tup ] = M[ u ][ v ]
+        
+        D = numpy.zeros( ( 2 , n , n ) )
+        D[ 0 ] = M[ k ]
 
-def vector_update_cost( M , k ):
+        a = M[ k , : , k ].reshape( n , 1 )
+        b = M[ k , k , : ].reshape( 1 , n )
+        D[ 1 ] = a + b
+
+        M[ k + 1 ] = D.min( axis = 0 , keepdims = False )
+
+    return idx , M
+        
+def warshall_costs( V , E ):
+
+    idx , M = get_k_costs( V , E )
+    n = len( idx )
+    M = M[ n ]
     
-    n = M.shape[ 0 ]
+    A = dict()
+    seq = permutations( range( n ) , repeat = 2 )
+    for i , j in seq:
+        if M[ i , j ] == sys.maxsize:
+            continue
+
+        tup = ( idx[ i ] , idx[ j ] )
+        A[ tup ] = M[ i , j ]
+    return A
+
+def get_k_paths( V , E ):
+
+    idx , M = get_k_costs( V , E )
+    n = len( idx )
+    
+    P = -1*numpy.ones( ( n + 1 , n , n ) )
+    seq = product( range( n ) , repeat = 2 )
+    for i , j in seq:
+        tup = ( idx[ i ] , idx[ j ] )
+        if tup in E:
+            P[ 0 , i , j ] = i
 
     #--------------------------------------------------
-    # M[ i , k ] , 0 <= i < n
-    arr1 = M[ : , k ].reshape( n , 1 )
+    # Não vetorizada
+    for k in range( n ):
+        for i , j in seq:
 
-    #--------------------------------------------------
-    # M[ k , j ] , 0 <= j < n
-    arr2 = M[ k ].reshape( 1 , n )
+            a = M[ k , i , j ]
+            b = M[ k , i , k ] + M[ k , k , j ]
 
+            P[ k + 1 , i , j ] = P[ k , i , j ]
+            if a > b:
+                P[ k + 1 , i , j ] = P[ k , k , j ]
     #--------------------------------------------------
-    # Mat[ 0 , i , j ] = M[ i , j ]
-    # Mat[ 1 , i , j ] = M[ i , k ] + M[ k , j ]
-    Mat = numpy.zeros( ( 2 , n , n ) )
-    Mat[ 0 ] = M
-    Mat[ 1 ] = arr1 + arr2
-    return Mat.min( axis = 0 , keepdims = False )
+    # falta vetorizar
     
+    return idx , P
+
+def warshall_paths( V , E )
+
+    idx , P = get_k_paths( V , E )
+    n = len( idx )   
+    seq = product( range( n ) , repeat = 2 )
+
+    P = P[ n ]
+    s_seq = set( seq )
+    A = dict()
+    while s_seq:
+
+        start , end = s_seq.pop()
+        if P[ start , end ] == -1: continue
+
+        path = [ ]
+        while start != end:
+            path.append( end )
+            end = P[ start , end ]
+        else:
+            path.append( start )
+            path.reverse()
+
+        path = list( map ( lambda x: idx[ x ] , path ) )
+
+
